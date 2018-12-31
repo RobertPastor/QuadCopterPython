@@ -160,13 +160,13 @@ def simulationPointToPoint(plannedTrajectory):
     GOALS = plannedTrajectory
     #GOALS = trajectoryList
     # Define the quadcopters
-    QUADCOPTER={'q1':{'position':[0,0,0],'orientation':[0,0,0],'L':0.3,'r':0.1,'prop_size':[10,4.5],'weight':1.2}}
+    QUADCOPTER={'q1':{'position':[0,0,0],'orientation':[0,0,0],'L':0.3,'r':0.1,'prop_size':[10, 4.5],'weight':1.2}}
     # Controller parameters
     CONTROLLER_PARAMETERS = {'Motor_limits':[4000,9000],
                         'Tilt_limits':[-10,10],
                         'Yaw_Control_Limits':[-900,900],
                         'Z_XY_offset':500,
-                        'Linear_PID':{'P':[1500, 200, 1500],'I':[0.25, 0.25, 4.5],'D':[3000, 500, 3000]},
+                        'Linear_PID':{'P':[1500, 1500, 1500],'I':[0.25, 0.25, 4.5],'D':[3000, 3000, 3000]},
                         'Linear_To_Angular_Scaler':[1,1,0],
                         'Yaw_Rate_Scaler':0.18,
                         'Angular_PID':{'P':[22000,22000,1500],'I':[0,0,1.2],'D':[12000,12000,0]},
@@ -242,4 +242,5 @@ if __name__ == "__main__":
     trajectory.computeBezier()
     plannedTrajectory = trajectory.getTrajectory()
     plannedTrajectory = [(0.0 , 0.0 , 6.0 ), (5.0, 3.0 , 4.0),  (-5.0 , 2.0, 2.0) , (0.0, 0.0, 4.0)]
+    plannedTrajectory = [(0.0 , 0.0 , 6.0 ), (5.0, 0.0 , 5.0),  (5.0 , 5.0, 7.0) , (-5.0, 5.0, 4.0) , (-5.0, 0.0, 2.0) ]
     simulationPointToPoint(plannedTrajectory) 

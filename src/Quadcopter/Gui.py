@@ -19,11 +19,11 @@ class GUI():
         
         ''' compute axes limits from planned trajectory '''
         self.ax.set_xlim3d([-10.0, 10.0])
-        self.ax.set_xlabel('X')
+        self.ax.set_xlabel('X meters')
         self.ax.set_ylim3d([-10.0, 10.0])
-        self.ax.set_ylabel('Y')
+        self.ax.set_ylabel('Y meters')
         self.ax.set_zlim3d([0, 20.0])
-        self.ax.set_zlabel('Z')
+        self.ax.set_zlabel('Z meters')
         
         if (isinstance(plannedTrajectory, list)):
             self.ax.set_xlim3d([min(map(lambda x: x[0], plannedTrajectory)) - 5., max(map(lambda x: x[0], plannedTrajectory)) + 5.])
@@ -59,7 +59,7 @@ class GUI():
             R = self.rotation_matrix(self.quads[key]['orientation'])
             ''' quad arm length '''
             L = self.quads[key]['L']
-            ''' world limits correction to arm length '''
+            ''' correct to arm length to one part of the world limits '''
             L = 2.0
             points = np.array([ [-L,0,0], [L,0,0], [0,-L,0], [0,L,0], [0,0,0], [0,0,0] ]).T
             points = np.dot(R,points)

@@ -11,40 +11,60 @@ import time
 import datetime
 import threading
 
-class Propeller():
-    def __init__(self, prop_dia, prop_pitch, thrust_unit='N'):
-        self.dia = prop_dia
-        self.pitch = prop_pitch
-        self.thrust_unit = thrust_unit
-        self.speed = 0 #RPM
-        self.thrust = 0
+inch2Meters = 0.0254
+k1 = 0.30344777
+k2 = 1.5
 
-    def set_speed(self,speed):
-        self.speed = speed
-        # From http://www.electricrcaircraftguy.com/2013/09/propeller-static-dynamic-thrust-equation.html
-        self.thrust = 4.392e-8 * self.speed * math.pow(self.dia,3.5)/(math.sqrt(self.pitch))
-        self.thrust = self.thrust*(4.23e-4 * self.speed * self.pitch)
+class Propeller():
+    def __init__(self, name, prop_diameter, prop_pitch, thrust_unit = 'N'):
+        self.name = name
+        ''' propeller diameter in inches '''
+        self.diameterInches = prop_diameter
+        self.pitchInches = prop_pitch
+        self.thrust_unit = thrust_unit
+        ''' Rotations per Minute '''
+        self.speed = 0  
+        self.thrust = 0
+        ''' air density kg / (m3) '''
+        self.rho = 1.225
+
+    def set_speed(self, speedRPM):
+        ''' RPM rotation per minute '''
+        self.speed = speedRPM
+        ''' From http://www.electricrcaircraftguy.com/2013/09/propeller-static-dynamic-thrust-equation.html '''
+        ''' warning : need to correct for air density according to altitude over mean sea level '''
+        self.thrust = 4.392e-8 * self.speed * math.pow (self.diameterInches, 3.5) / ( math.sqrt(self.pitchInches) )
+        self.thrust = self.thrust * (4.23e-4 * self.speed * self.pitchInches)
+        
+        ''' thrust from values in meters '''
+        thrustNewtons = ( self.rho * math.pi * math.pow  ( ( self.diameterInches * inch2Meters ) , 2 ) ) / 4.0
+        thrustNewtons = thrustNewtons * math.pow ( ( self.speed * self.pitchInches * inch2Meters ) / 60.  , 2 )
+        thrustNewtons = thrustNewtons * math.pow ( ( k1 * self.diameterInches ) / self.pitchInches , k2 )
+        
+        self.thrust = thrustNewtons
         if self.thrust_unit == 'Kg':
-            self.thrust = self.thrust*0.101972
+            self.thrust = self.thrust * 0.101972
 
 class Quadcopter():
     # State space representation: [x y z x_dot y_dot z_dot theta phi gamma theta_dot phi_dot gamma_dot]
     # From Quadcopter Dynamics, Simulation, and Control by Andrew Gibiansky
-    def __init__(self,quads,gravity=9.81,b=0.0245):
+    def __init__(self, quads, gravity=9.81, b=0.0245):
         self.quads = quads
         self.g = gravity
         self.b = b
         self.thread_object = None
+        ''' integration '''
         self.ode =  scipy.integrate.ode(self.state_dot).set_integrator('vode',nsteps=500,method='bdf')
         self.time = datetime.datetime.now()
         for key in self.quads:
             self.quads[key]['state'] = np.zeros(12)
             self.quads[key]['state'][0:3] = self.quads[key]['position']
             self.quads[key]['state'][6:9] = self.quads[key]['orientation']
-            self.quads[key]['m1'] = Propeller(self.quads[key]['prop_size'][0],self.quads[key]['prop_size'][1])
-            self.quads[key]['m2'] = Propeller(self.quads[key]['prop_size'][0],self.quads[key]['prop_size'][1])
-            self.quads[key]['m3'] = Propeller(self.quads[key]['prop_size'][0],self.quads[key]['prop_size'][1])
-            self.quads[key]['m4'] = Propeller(self.quads[key]['prop_size'][0],self.quads[key]['prop_size'][1])
+            
+            self.quads[key]['m1'] = Propeller(name='m1', prop_diameter=self.quads[key]['prop_size'][0], prop_pitch=self.quads[key]['prop_size'][1])
+            self.quads[key]['m2'] = Propeller(name='m2', prop_diameter=self.quads[key]['prop_size'][0], prop_pitch=self.quads[key]['prop_size'][1])
+            self.quads[key]['m3'] = Propeller(name='m3', prop_diameter=self.quads[key]['prop_size'][0], prop_pitch=self.quads[key]['prop_size'][1])
+            self.quads[key]['m4'] = Propeller(name='m4', prop_diameter=self.quads[key]['prop_size'][0], prop_pitch=self.quads[key]['prop_size'][1])
             # From Quadrotor Dynamics and Control by Randal Beard
             # moment of inertia
             ixx=((2*self.quads[key]['weight']*self.quads[key]['r']**2)/5)+(2*self.quads[key]['weight']*self.quads[key]['L']**2)
@@ -95,6 +115,7 @@ class Quadcopter():
         return state_dot
 
     def update(self, dt):
+        ''' loop through all the quads '''
         for key in self.quads:
             self.ode.set_initial_value(self.quads[key]['state'],0).set_f_params(key)
             self.quads[key]['state'] = self.ode.integrate(self.ode.t + dt)
