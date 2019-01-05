@@ -16,8 +16,10 @@ class Controller_PID_Point2Point():
         self.get_state = get_state
         self.get_time = get_time
         self.MOTOR_LIMITS = params['Motor_limits']
+        ''' convert tilt limits in radians '''
         self.TILT_LIMITS = [(params['Tilt_limits'][0]/180.0)*3.14,(params['Tilt_limits'][1]/180.0)*3.14]
         self.YAW_CONTROL_LIMITS = params['Yaw_Control_Limits']
+        
         self.Z_LIMITS = [self.MOTOR_LIMITS[0]+params['Z_XY_offset'],self.MOTOR_LIMITS[1]-params['Z_XY_offset']]
         print 'Controller Z_Limits= {0}'.format(self.Z_LIMITS)
         self.LINEAR_P = params['Linear_PID']['P']
@@ -54,6 +56,7 @@ class Controller_PID_Point2Point():
         dest_x_dot = self.LINEAR_P[0]*(x_error) + self.LINEAR_D[0]*(-x_dot) + self.xi_term
         dest_y_dot = self.LINEAR_P[1]*(y_error) + self.LINEAR_D[1]*(-y_dot) + self.yi_term
         dest_z_dot = self.LINEAR_P[2]*(z_error) + self.LINEAR_D[2]*(-z_dot) + self.zi_term
+        
         dest_z_dot = np.clip(dest_z_dot, -5.0, +5.0)
         print 'controller - target z dot= {0}'.format(dest_z_dot)
         
@@ -61,6 +64,7 @@ class Controller_PID_Point2Point():
         dest_theta = self.LINEAR_TO_ANGULAR_SCALER[0]*(dest_x_dot*math.sin(gamma)-dest_y_dot*math.cos(gamma))
         dest_phi = self.LINEAR_TO_ANGULAR_SCALER[1]*(dest_x_dot*math.cos(gamma)+dest_y_dot*math.sin(gamma))
         dest_gamma = self.yaw_target
+        ''' clip to limit values ranges '''
         dest_theta = np.clip(dest_theta,self.TILT_LIMITS[0],self.TILT_LIMITS[1])
         dest_phi = np.clip(dest_phi,self.TILT_LIMITS[0],self.TILT_LIMITS[1])
         theta_error = dest_theta-theta
@@ -108,6 +112,7 @@ class Controller_PID_Velocity(Controller_PID_Point2Point):
     def update(self):
         [dest_x,dest_y,dest_z] = self.target
         [x,y,z,x_dot,y_dot,z_dot,theta,phi,gamma,theta_dot,phi_dot,gamma_dot] = self.get_state(self.quad_identifier)
+        ''' Position error '''
         x_error = dest_x-x
         y_error = dest_y-y
         z_error = dest_z-z
@@ -117,24 +122,41 @@ class Controller_PID_Velocity(Controller_PID_Point2Point):
         self.xi_term += self.LINEAR_I[0]*x_error
         self.yi_term += self.LINEAR_I[1]*y_error
         self.zi_term += self.LINEAR_I[2]*z_error
+        
         dest_x_dot = self.LINEAR_P[0]*(x_error) + self.LINEAR_D[0]*(-x_dot) + self.xi_term
         dest_y_dot = self.LINEAR_P[1]*(y_error) + self.LINEAR_D[1]*(-y_dot) + self.yi_term
         dest_z_dot = self.LINEAR_P[2]*(z_error) + self.LINEAR_D[2]*(-z_dot) + self.zi_term
+        #print 'x_dot= {0} - y_dot= {1} - z_dot= {2}'.format(dest_x_dot , dest_y_dot , dest_z_dot)
+        
+        #dot_limits = 50000.0
+        #dest_x_dot = np.clip(dest_x_dot, - dot_limits , + dot_limits)
+        #dest_y_dot = np.clip(dest_y_dot, - dot_limits , + dot_limits)
+        #dest_z_dot = np.clip(dest_z_dot, - dot_limits , + dot_limits)
+        #print 'x_dot= {0} - y_dot= {1} - z_dot= {2}'.format(dest_x_dot , dest_y_dot , dest_z_dot)
+
+        ''' manette des gaz '''
         throttle = np.clip(dest_z_dot,self.Z_LIMITS[0],self.Z_LIMITS[1])
+        
         dest_theta = self.LINEAR_TO_ANGULAR_SCALER[0]*(dest_x_dot*math.sin(gamma)-dest_y_dot*math.cos(gamma))
         dest_phi = self.LINEAR_TO_ANGULAR_SCALER[1]*(dest_x_dot*math.cos(gamma)+dest_y_dot*math.sin(gamma))
         dest_gamma = self.yaw_target
-        dest_theta,dest_phi = np.clip(dest_theta,self.TILT_LIMITS[0],self.TILT_LIMITS[1]),np.clip(dest_phi,self.TILT_LIMITS[0],self.TILT_LIMITS[1])
+        
+        dest_theta = np.clip(dest_theta,self.TILT_LIMITS[0],self.TILT_LIMITS[1])
+        dest_phi = np.clip(dest_phi,self.TILT_LIMITS[0],self.TILT_LIMITS[1])
+        
         theta_error = dest_theta-theta
         phi_error = dest_phi-phi
         gamma_dot_error = (self.YAW_RATE_SCALER*self.wrap_angle(dest_gamma-gamma)) - gamma_dot
+        
         ''' integral terms '''
         self.thetai_term += self.ANGULAR_I[0]*theta_error
         self.phii_term += self.ANGULAR_I[1]*phi_error
         self.gammai_term += self.ANGULAR_I[2]*gamma_dot_error
+        
         x_val = self.ANGULAR_P[0]*(theta_error) + self.ANGULAR_D[0]*(-theta_dot) + self.thetai_term
         y_val = self.ANGULAR_P[1]*(phi_error) + self.ANGULAR_D[1]*(-phi_dot) + self.phii_term
         z_val = self.ANGULAR_P[2]*(gamma_dot_error) + self.gammai_term
+        
         z_val = np.clip(z_val,self.YAW_CONTROL_LIMITS[0],self.YAW_CONTROL_LIMITS[1])
         m1 = throttle + x_val + z_val
         m2 = throttle + y_val - z_val

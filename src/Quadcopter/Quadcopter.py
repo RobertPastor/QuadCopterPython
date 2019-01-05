@@ -29,7 +29,7 @@ class Propeller():
         self.rho = 1.225
 
     def set_speed(self, speedRPM):
-        ''' RPM rotation per minute '''
+        ''' RPM rotation per minutes '''
         self.speed = speedRPM
         ''' From http://www.electricrcaircraftguy.com/2013/09/propeller-static-dynamic-thrust-equation.html '''
         ''' warning : need to correct for air density according to altitude over mean sea level '''
@@ -41,9 +41,17 @@ class Propeller():
         thrustNewtons = thrustNewtons * math.pow ( ( self.speed * self.pitchInches * inch2Meters ) / 60.  , 2 )
         thrustNewtons = thrustNewtons * math.pow ( ( k1 * self.diameterInches ) / self.pitchInches , k2 )
         
+        if (abs(self.thrust-thrustNewtons) > 0.1):
+            print 'stop'
         self.thrust = thrustNewtons
         if self.thrust_unit == 'Kg':
             self.thrust = self.thrust * 0.101972
+            
+    def getThrust(self):
+        if (self.thrust_unit == 'N'):
+            return self.thrust
+        else:
+            self.thrust * 0.101972
 
 class Quadcopter():
     # State space representation: [x y z x_dot y_dot z_dot theta phi gamma theta_dot phi_dot gamma_dot]
@@ -75,20 +83,34 @@ class Quadcopter():
         self.run = True
 
     def rotation_matrix(self,angles):
+        ''' http://personal.maths.surrey.ac.uk/T.Bridges/SLOSH/3-2-1-Eulerangles.pdf '''
+        ''' roll - phi '''
         ct = math.cos(angles[0])
-        cp = math.cos(angles[1])
-        cg = math.cos(angles[2])
         st = math.sin(angles[0])
+        
+        ''' pitch - theta '''
+        cp = math.cos(angles[1])
         sp = math.sin(angles[1])
+        
+        ''' yaw - psi '''
+        cg = math.cos(angles[2])
         sg = math.sin(angles[2])
+        
+        ''' roll rotation '''
         R_x = np.array([[1,0,0],[0,ct,-st],[0,st,ct]])
+        ''' pitch rotation '''
         R_y = np.array([[cp,0,sp],[0,1,0],[-sp,0,cp]])
+        ''' yaw rotation '''
         R_z = np.array([[cg,-sg,0],[sg,cg,0],[0,0,1]])
+        
+        ''' euler 3 - 2 - 1 '''
         R = np.dot(R_z, np.dot( R_y, R_x ))
         return R
 
+
     def wrap_angle(self,val):
         return( ( val + np.pi) % (2 * np.pi ) - np.pi )
+
 
     def state_dot(self, time, state, key):
         state_dot = np.zeros(12)
@@ -170,3 +192,16 @@ class Quadcopter():
 
     def stop_thread(self):
         self.run = False
+        
+        
+def main():
+    prop = Propeller(name='m1', prop_diameter=10., prop_pitch=4.5, thrust_unit = 'N')
+    for speedRPM in range(4500, 9000, 100):
+        prop.set_speed(speedRPM)
+        #print 'propeller speed= {0} rpm - thrust= {1} newtons'.format(prop.speed, prop.getThrust())
+        print ' {0} ; {1} '.format(prop.speed, prop.getThrust())
+        
+    
+        
+if __name__ == "__main__":
+    main()
